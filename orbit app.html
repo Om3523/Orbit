@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orbit - Finance Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #18181b; color: #f4f4f5; font-family: system-ui, sans-serif; }
+        .card { background: #27272a; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-10 flex justify-center items-start">
+
+    <div class="w-full max-w-md card p-6">
+        <h1 class="text-2xl font-bold mb-6 text-center">Orbit Finance</h1>
+
+        <!-- Balance Display -->
+        <div class="text-center mb-8 relative">
+            <div class="flex justify-center items-center gap-2 mb-1">
+                <p class="text-gray-400 text-sm">Total Balance</p>
+                <!-- NEW: Starting Balance Button -->
+                <button onclick="editStartingBalance()" class="bg-blue-500/20 text-blue-400 hover:bg-blue-500/40 text-[10px] px-2 py-1 rounded-full transition">
+                    + Set Starting Amount
+                </button>
+            </div>
+            <h2 id="balance" class="text-4xl font-bold text-white tracking-tight">$0.00</h2>
+            <p id="starting-display" class="text-xs text-gray-500 mt-2 hidden">Includes <span id="start-amt">$0</span> starting balance</p>
+        </div>
+
+        <div class="flex justify-between gap-4 mb-8">
+            <div class="flex-1 bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl text-center">
+                <p class="text-xs text-emerald-400 mb-1">Income Added</p>
+                <p id="income" class="font-bold text-emerald-500">$0.00</p>
+            </div>
+            <div class="flex-1 bg-red-500/10 border border-red-500/20 p-3 rounded-xl text-center">
+                <p class="text-xs text-red-400 mb-1">Total Expenses</p>
+                <p id="expense" class="font-bold text-red-500">$0.00</p>
+            </div>
+        </div>
+
+        <!-- Add Transaction Form -->
+        <form id="finance-form" class="mb-8 space-y-3">
+            <input type="text" id="desc" placeholder="What was it? (e.g., Pizza, Salary)" required class="w-full bg-[#18181b] border border-gray-600 rounded-lg p-3 text-white outline-none focus:border-blue-500">
+            <div class="flex gap-3">
+                <input type="number" id="amount" placeholder="Amount" step="0.01" required class="flex-1 bg-[#18181b] border border-gray-600 rounded-lg p-3 text-white outline-none focus:border-blue-500">
+                <select id="type" class="bg-[#18181b] border border-gray-600 rounded-lg p-3 text-white outline-none focus:border-blue-500">
+                    <option value="expense">Expense</option>
+                    <option value="income">Income</option>
+                </select>
+            </div>
+            <button type="submit" class="w-full bg-blue-500 text-white font-bold py-3 rounded-lg hover:bg-blue-600 transition">Add Transaction</button>
+        </form>
+
+        <!-- History -->
+        <div>
+            <div class="flex justify-between items-center mb-3 border-b border-gray-700 pb-2">
+                <h3 class="text-sm font-bold text-gray-400">Recent History</h3>
+                <button onclick="clearHistory()" class="text-xs text-red-500 hover:text-red-400 underline">Clear All</button>
+            </div>
+            <ul id="history-list" class="space-y-3 max-h-48 overflow-y-auto pr-2"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Get our saved data, or start empty
+        let transactions = JSON.parse(localStorage.getItem('orbit_data')) || [];
+        let startingBalance = parseFloat(localStorage.getItem('orbit_starting_balance')) || 0;
+
+        function updateUI() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = '';
+
+            let totalIncome = 0;
+            let totalExpense = 0;
+
+            // Loop through all transactions
+            transactions.forEach((t, index) => {
+                if (t.type === 'income') totalIncome += t.amount;
+                else totalExpense += t.amount;
+
+                const sign = t.type === 'income' ? '+' : '-';
+                const color = t.type === 'income' ? 'text-emerald-500' : 'text-red-500';
+
+                list.innerHTML += `
+                    <li class="flex justify-between items-center bg-[#18181b] p-3 rounded-lg border border-white/5">
+                        <span class="text-sm">${t.desc}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold ${color}">${sign}$${t.amount.toFixed(2)}</span>
+                            <button onclick="deleteTx(${index})" class="text-gray-500 hover:text-red-500 text-lg leading-none">&times;</button>
+                        </div>
+                    </li>
+                `;
+            });
+
+            // Calculate the big total (Starting Money + Income - Expenses)
+            const balance = startingBalance + totalIncome - totalExpense;
+            
+            // Update the screen
+            document.getElementById('balance').innerText = `$${balance.toFixed(2)}`;
+            document.getElementById('income').innerText = `$${totalIncome.toFixed(2)}`;
+            document.getElementById('expense').innerText = `$${totalExpense.toFixed(2)}`;
+
+            // Show the starting balance text if they have one
+            const startDisplay = document.getElementById('starting-display');
+            if (startingBalance > 0) {
+                startDisplay.classList.remove('hidden');
+                document.getElementById('start-amt').innerText = `$${startingBalance.toFixed(2)}`;
+            } else {
+                startDisplay.classList.add('hidden');
+            }
+        }
+
+        // Feature: Set Starting Amount
+        window.editStartingBalance = function() {
+            let amount = prompt("How much money do you already have?", startingBalance);
+            if (amount !== null && amount !== "") {
+                startingBalance = parseFloat(amount);
+                localStorage.setItem('orbit_starting_balance', startingBalance);
+                updateUI();
+            }
+        }
+
+        // Handle adding a new transaction
+        document.getElementById('finance-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const desc = document.getElementById('desc').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const type = document.getElementById('type').value; // 'income' or 'expense'
+
+            // Add it to our list
+            transactions.unshift({ desc, amount, type });
+            
+            // Save it forever
+            localStorage.setItem('orbit_data', JSON.stringify(transactions));
+            
+            // Clear the form and update screen
+            this.reset();
+            updateUI();
+        });
+
+        // Feature: Delete a single transaction
+        window.deleteTx = function(index) {
+            transactions.splice(index, 1);
+            localStorage.setItem('orbit_data', JSON.stringify(transactions));
+            updateUI();
+        }
+
+        // Feature: Clear everything
+        window.clearHistory = function() {
+            if(confirm("Are you sure you want to delete all history?")) {
+                transactions = [];
+                startingBalance = 0;
+                localStorage.removeItem('orbit_data');
+                localStorage.removeItem('orbit_starting_balance');
+                updateUI();
+            }
+        }
+
+        // Start the app!
+        updateUI();
+    </script>
+</body>
+</html>
